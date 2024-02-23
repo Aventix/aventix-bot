@@ -1,9 +1,14 @@
 plugins {
     id("java")
+    application
 }
 
 group = "de.aventix"
 version = "1.0-SNAPSHOT"
+
+application {
+    mainClass = "de.aventix.bot.DiscordBotApplication"
+}
 
 repositories {
     mavenCentral()
