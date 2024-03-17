@@ -1,13 +1,15 @@
-FROM openjdk:19-buster
+FROM openjdk:19-buster as builder
 
 WORKDIR /src
 
-RUN git clone https://github.com/Aventix/aventix-bot.git .
-RUN ls
+COPY . .
 
-COPY discord-bot/* .
+RUN sh gradlew installDist
 
-RUN ./gradlew build
-COPY build/libs/aventix-bot-1.0-SNAPSHOT.jar .
+FROM openjdk:19-alpine
 
-ENTRYPOINT ["java", "-jar", "aventix-bot-1.0-SNAPSHOT.jar"]
+WORKDIR /opt/aventix-bot
+
+COPY --from=builder /src/build/install/aventix-bot ./
+
+ENTRYPOINT ["sh", "./bin/aventix-bot"]
