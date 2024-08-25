@@ -3,6 +3,8 @@ package de.aventix.bot.listener;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import de.aventix.bot.config.entry.DiscordApplicationConfig;
+import de.aventix.bot.config.entry.DiscordGuildApplicationConfig;
+import de.aventix.bot.config.entry.GuildMessageConfiguration;
 import de.aventix.bot.config.entry.MessageConfiguration;
 import de.aventix.bot.message.MessageController;
 import net.dv8tion.jda.api.entities.User;
@@ -39,14 +41,21 @@ public class WelcomeLeaveListener extends ListenerAdapter {
         User user = event.getUser();
         TextChannel channel;
 
-        if ((channel = event.getGuild().getTextChannelById(this.config.getWelcomeLeaveMessageChannel()))
+        DiscordGuildApplicationConfig configuration = config.getGuilds().stream().filter(cfg -> cfg.getGuildId() == event.getGuild().getIdLong()).findFirst().orElse(null);
+        if (configuration == null) return;
+
+        if ((channel = event.getGuild().getTextChannelById(configuration.getWelcomeLeaveMessageChannel()))
                 != null) {
             String timeStamp = new SimpleDateFormat("dd.MM.yyyy - HH:mm").format(Calendar.getInstance().getTime());
             String currentTimestamp = timeStamp + " Uhr";
+
+            GuildMessageConfiguration guildMessageConfiguration = this.messages.getGuilds().stream().filter(message -> message.getGuildId() == event.getGuild().getIdLong()).findFirst().orElse(null);
+            if (guildMessageConfiguration == null) return;
+
             channel
                     .sendMessageEmbeds(
                             this.messageController.getMessage(
-                                    this.messages.getWelcomeMessage(),
+                                    guildMessageConfiguration.getWelcomeMessage(),
                                     user.getAsMention(),
                                     currentTimestamp,
                                     (user.getAvatarUrl() == null ? user.getDefaultAvatarUrl() : user.getAvatarUrl())))
@@ -59,14 +68,21 @@ public class WelcomeLeaveListener extends ListenerAdapter {
         User user = event.getUser();
         TextChannel channel;
 
-        if ((channel = event.getGuild().getTextChannelById(this.config.getWelcomeLeaveMessageChannel()))
+        DiscordGuildApplicationConfig configuration = config.getGuilds().stream().filter(cfg -> cfg.getGuildId() == event.getGuild().getIdLong()).findFirst().orElse(null);
+        if (configuration == null) return;
+
+        if ((channel = event.getGuild().getTextChannelById(configuration.getWelcomeLeaveMessageChannel()))
                 != null) {
             String timeStamp = new SimpleDateFormat("dd.MM.yyyy - HH:mm").format(Calendar.getInstance().getTime());
             String currentTimestamp = timeStamp + " Uhr";
+
+            GuildMessageConfiguration guildMessageConfiguration = this.messages.getGuilds().stream().filter(message -> message.getGuildId() == event.getGuild().getIdLong()).findFirst().orElse(null);
+            if (guildMessageConfiguration == null) return;
+
             channel
                     .sendMessageEmbeds(
                             this.messageController.getMessage(
-                                    this.messages.getLeaveMessage(),
+                                    guildMessageConfiguration.getLeaveMessage(),
                                     user.getAsMention(),
                                     currentTimestamp,
                                     (user.getAvatarUrl() == null ? user.getDefaultAvatarUrl() : user.getAvatarUrl())))

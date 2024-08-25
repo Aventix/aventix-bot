@@ -3,6 +3,7 @@ package de.aventix.bot.listener;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import de.aventix.bot.config.entry.DiscordApplicationConfig;
+import de.aventix.bot.config.entry.DiscordGuildApplicationConfig;
 import de.aventix.bot.message.EmbededMessageEntity;
 import de.aventix.bot.message.MessageController;
 import net.dv8tion.jda.api.entities.Role;
@@ -29,11 +30,13 @@ public class ChatCommandListener extends ListenerAdapter {
     @Override
     public void onMessageReceived(@NotNull MessageReceivedEvent event) {
         String[] arguments = event.getMessage().getContentRaw().split(" ", 4);
-        if (arguments[0].startsWith(config.getBotCommandPrefix())) {
-            Role foundPermissionRole = event.getMember().getRoles().stream().filter(role -> config.getBotPermissions().contains(role.getIdLong())).findAny().orElse(null);
+        DiscordGuildApplicationConfig configuration = config.getGuilds().stream().filter(cfg -> cfg.getGuildId() == event.getGuild().getIdLong()).findFirst().orElse(null);
+        if (configuration == null) return;
+
+        if (arguments[0].startsWith(configuration.getBotCommandPrefix())) {
+            Role foundPermissionRole = event.getMember().getRoles().stream().filter(role -> configuration.getBotPermissions().contains(role.getIdLong())).findAny().orElse(null);
             if (foundPermissionRole != null) {
                 if (arguments[1] != null && arguments[1].startsWith("sendembedmessage")) {
-                    System.out.println("YESS");
                     ObjectMapper objectMapper = new ObjectMapper();
                     try {
                         EmbededMessageEntity messageEntity = objectMapper.readValue(arguments[3].toString(), EmbededMessageEntity.class);

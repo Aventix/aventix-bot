@@ -5,5 +5,4 @@ public class MessageEntry {
   private String messageContent = "message";
   private boolean isEmbed = true;
   private String embedColor = "";
-  
 }

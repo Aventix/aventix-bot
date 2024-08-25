@@ -15,6 +15,6 @@ import java.util.List;
 @Singleton
 @Configuration(filename = "reaction", type = JsonConfigurationType.class)
 public class ReactionConfig extends Config {
-    private List<ReactionConfigEntry> reactionEntries = Lists.newArrayList();
+    private List<ReactionConfigGuildEntry> guilds = Lists.newArrayList(new ReactionConfigGuildEntry());
 }
 

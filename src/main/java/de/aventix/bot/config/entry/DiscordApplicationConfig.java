@@ -17,7 +17,5 @@ import java.util.List;
 @Configuration(filename = "config", type = JsonConfigurationType.class)
 public class DiscordApplicationConfig extends Config {
     private String botToken = "";
-    private long welcomeLeaveMessageChannel = 1L;
-    private String botCommandPrefix = "!aventixbot";
-    private List<Long> botPermissions = Lists.newArrayList();
+    private List<DiscordGuildApplicationConfig> guilds = Lists.newArrayList(new DiscordGuildApplicationConfig());
 }

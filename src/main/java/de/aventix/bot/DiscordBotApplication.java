@@ -39,7 +39,7 @@ public class DiscordBotApplication {
             DiscordApplicationConfig config = injector.getInstance(DiscordApplicationConfig.class);
 
             if (config.getBotToken() == null || config.getBotToken().isEmpty()) {
-                System.out.println("Can't load Bot, there is no valid Bot Token!");
+                System.out.println("Cant load Bot, there is no valid Bot Token!");
                 return;
             }
 

@@ -33,9 +33,11 @@ public class ReactionController extends ListenerAdapter {
 
     @Override
     public void onMessageReactionAdd(@NotNull MessageReactionAddEvent event) {
-        ReactionConfigEntry configEntryMatch = this.config.getReactionEntries().stream()
-                .filter(entry -> entry.getChannelId().equalsIgnoreCase(event.getChannel().getId()) &&
-                        entry.getMessageId().equalsIgnoreCase(event.getMessageId())).findFirst().orElse(null);
+        ReactionConfigEntry configEntryMatch = this.config.getGuilds().stream()
+                .filter(guildId -> guildId.getGuildId() == event.getGuild().getIdLong())
+                .flatMap(guild -> guild.getEntries().stream())
+                .filter(guildEntry -> guildEntry.getChannelId().equalsIgnoreCase(event.getChannel().getId()) &&
+                        guildEntry.getMessageId().equalsIgnoreCase(event.getMessageId())).findFirst().orElse(null);
 
         TextChannel channel;
         if (configEntryMatch != null) {
@@ -63,10 +65,11 @@ public class ReactionController extends ListenerAdapter {
 
     @Override
     public void onMessageReactionRemove(@NotNull MessageReactionRemoveEvent event) {
-        ReactionConfigEntry configEntryMatch = this.config.getReactionEntries().stream().filter(entry -> {
-            return entry.getChannelId().equals(event.getChannel().getId()) && entry.getMessageId().equals(event.getMessageId());
-        }).findFirst().orElse(null);
-
+        ReactionConfigEntry configEntryMatch = this.config.getGuilds().stream()
+                .filter(guildId -> guildId.getGuildId() == event.getGuild().getIdLong())
+                .flatMap(guild -> guild.getEntries().stream())
+                .filter(guildEntry -> guildEntry.getChannelId().equalsIgnoreCase(event.getChannel().getId()) &&
+                        guildEntry.getMessageId().equalsIgnoreCase(event.getMessageId())).findFirst().orElse(null);
         TextChannel channel;
         if (configEntryMatch != null) {
             List<Map.Entry<String, List<String>>> emojiRoles = configEntryMatch.getEmojiRoles().entrySet().stream().filter(emojiEntry ->
@@ -77,7 +80,7 @@ public class ReactionController extends ListenerAdapter {
                             return event.getReaction().getEmoji().asUnicode().getAsCodepoints().equalsIgnoreCase(emojiEntry.getKey());
                         }
                     }
-            ).collect(Collectors.toList());
+            ).toList();
 
             if (emojiRoles.isEmpty()) return;
             emojiRoles.forEach(emojiRole -> {
