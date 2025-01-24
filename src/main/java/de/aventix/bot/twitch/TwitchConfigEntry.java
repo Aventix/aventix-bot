@@ -9,7 +9,6 @@ import java.util.List;
 @Getter
 @Setter
 public class TwitchConfigEntry {
-    private String channelName = "channelname";
-    private List<SimpleTwitchCommandConfigEntry> simpleCommands = Lists.newArrayList();
+    private List<TwitchChannelConfigEntry> channels = Lists.newArrayList();
     private List<TwitchMessageConfigEntry> guildSettings = Lists.newArrayList();
 }

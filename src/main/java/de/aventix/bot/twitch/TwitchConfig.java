@@ -8,7 +8,6 @@ import lombok.Getter;
 import lombok.Setter;
 
 import javax.inject.Singleton;
-import java.util.List;
 
 @Getter
 @Setter
@@ -19,5 +18,5 @@ public class TwitchConfig extends Config {
     private String secretKey = "secretKey";
     private String redirectUrl = "redirectUrl";
     private String irc = "IRC";
-    private List<TwitchConfigEntry> channels = Lists.newArrayList();
+    private TwitchConfigEntry config = new TwitchConfigEntry();
 }

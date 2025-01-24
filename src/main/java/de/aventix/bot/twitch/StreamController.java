@@ -41,16 +41,9 @@ public class StreamController {
         TwitchClientBuilder clientBuilder = TwitchClientBuilder.builder();
         OAuth2Credential credential = new OAuth2Credential("twitch", config.getIrc());
 
-        twitchClient = clientBuilder
-                .withClientId(config.getClientId())
-                .withClientSecret(config.getSecretKey())
-                .withEnableHelix(true)
-                .withEnableChat(true)
-                .withChatAccount(credential)
-                .withDefaultEventHandler(SimpleEventHandler.class)
-                .build();
+        twitchClient = clientBuilder.withClientId(config.getClientId()).withClientSecret(config.getSecretKey()).withEnableHelix(true).withEnableChat(true).withChatAccount(credential).withDefaultEventHandler(SimpleEventHandler.class).build();
 
-        config.getChannels().forEach(channel -> {
+        config.getConfig().getChannels().forEach(channel -> {
             twitchClient.getChat().joinChannel(channel.getChannelName());
             twitchClient.getClientHelper().enableStreamEventListener(channel.getChannelName());
         });
@@ -58,20 +51,21 @@ public class StreamController {
         twitchClient.getEventManager().onEvent(ChannelGoLiveEvent.class, liveEvent -> {
             System.out.println(liveEvent.getChannel().getName() + " ist nun Live!");
 
-            TwitchConfigEntry twitchConfigEntry = config.getChannels().stream().filter(channel -> channel.getChannelName().equalsIgnoreCase(liveEvent.getChannel().getName())).findFirst().orElse(null);
+            TwitchChannelConfigEntry twitchChannelConfigEntry = config.getConfig().getChannels().stream().filter(channel -> channel.getChannelName().equalsIgnoreCase(liveEvent.getChannel().getName())).findFirst().orElse(null);
 
-            if (twitchConfigEntry != null) {
+            if (twitchChannelConfigEntry != null) {
+                twitchChannelConfigEntry.getGuildIds().forEach(guildId -> {
+                    TwitchMessageConfigEntry twitchMessageConfigEntry = this.config.getConfig().getGuildSettings().stream().filter(guildSettings -> guildSettings.getGuildId() == guildId).findFirst().orElse(null);
 
-                twitchConfigEntry.getGuildSettings().forEach(guildSettings -> {
-                    if (guildSettings != null) {
-                        TextChannel guildChannelById = (TextChannel) Objects.requireNonNull(DiscordBotApplication.jda.getGuildById(guildSettings.getGuildId())).getGuildChannelById(ChannelType.TEXT, guildSettings.getChannelId());
+                    if (twitchMessageConfigEntry != null) {
+                        TextChannel guildChannelById = (TextChannel) Objects.requireNonNull(DiscordBotApplication.jda.getGuildById(twitchMessageConfigEntry.getGuildId())).getGuildChannelById(ChannelType.TEXT, twitchMessageConfigEntry.getChannelId());
                         String timeStamp = new SimpleDateFormat("dd.MM.yyyy - HH:mm").format(Calendar.getInstance().getTime());
                         String currentTimestamp = timeStamp + " Uhr";
 
                         try {
                             UserList userList = twitchClient.getHelix().getUsers(config.getIrc(), Lists.newArrayList(liveEvent.getChannel().getId()), Lists.newArrayList(liveEvent.getChannel().getName())).queue().get();
                             String profileImage = userList.getUsers().get(0).getProfileImageUrl();
-                            Long match = guildSettings.getSpecialGamePings().get(liveEvent.getStream().getGameId());
+                            Long match = twitchMessageConfigEntry.getSpecialGamePings().get(liveEvent.getStream().getGameId());
                             String roleMention = "";
 
                             if (match != null && match != -1 && match != 0) {
@@ -79,19 +73,7 @@ public class StreamController {
                                 if (role != null) roleMention = role.getAsMention();
                             }
 
-                            guildChannelById.sendMessageEmbeds(
-                                    messageController.getMessage(guildSettings.getBroadcastLiveMessage(),
-                                            userList.getUsers().get(0).getDisplayName(),
-                                            (liveEvent.getStream().getGameName().isEmpty() ? "Just Chatting" : liveEvent.getStream().getGameName()),
-                                            liveEvent.getStream().getTitle(),
-                                            liveEvent.getStream().getThumbnailUrl(1920, 1080),
-                                            profileImage,
-                                            "https://twitch.tv/" + liveEvent.getChannel().getName(),
-                                            currentTimestamp,
-                                            liveEvent.getStream().getViewerCount(),
-                                            roleMention
-                                    )
-                            ).queue();
+                            guildChannelById.sendMessageEmbeds(messageController.getMessage(twitchMessageConfigEntry.getBroadcastLiveMessage(), userList.getUsers().get(0).getDisplayName(), (liveEvent.getStream().getGameName().isEmpty() ? "Just Chatting" : liveEvent.getStream().getGameName()), liveEvent.getStream().getTitle(), liveEvent.getStream().getThumbnailUrl(1920, 1080), profileImage, "https://twitch.tv/" + liveEvent.getChannel().getName(), currentTimestamp, liveEvent.getStream().getViewerCount(), roleMention)).queue();
                         } catch (InterruptedException | ExecutionException ignored) {
                         }
                     }
@@ -100,11 +82,10 @@ public class StreamController {
         });
 
         twitchClient.getEventManager().onEvent(ChannelMessageEvent.class, chatEvent -> {
-            TwitchConfigEntry twitchConfigEntry = config.getChannels().stream().filter(channel -> channel.getChannelName().equalsIgnoreCase(chatEvent.getChannel().getName())).findFirst().orElse(null);
+            TwitchChannelConfigEntry twitchChannelConfigEntry = config.getConfig().getChannels().stream().filter(channel -> channel.getChannelName().equalsIgnoreCase(chatEvent.getChannel().getName())).findFirst().orElse(null);
 
-
-            if (twitchConfigEntry != null) {
-                SimpleTwitchCommandConfigEntry commandEntry = twitchConfigEntry.getSimpleCommands().stream().filter(cmd -> cmd.getCommand().contains(chatEvent.getMessage())).findFirst().orElse(null);
+            if (twitchChannelConfigEntry != null) {
+                SimpleTwitchCommandConfigEntry commandEntry = twitchChannelConfigEntry.getSimpleCommands().stream().filter(cmd -> cmd.getCommand().contains(chatEvent.getMessage())).findFirst().orElse(null);
 
             /*if (chatEvent.getMessage().startsWith("!settitle")) {
                 if (hasChatPermissions(Arrays.asList("MODERATOR", "BROADCASTER"), chatEvent.getPermissions())) {
@@ -121,11 +102,8 @@ public class StreamController {
                 }
             }*/
 
-                if (commandEntry != null &&
-                        (commandEntry.getPermissions() == null ||
-                                commandEntry.getPermissions().isEmpty() || hasChatPermissions(commandEntry.getPermissions(), chatEvent.getPermissions())
-                        )) {
-                    twitchClient.getChat().sendMessage(twitchConfigEntry.getChannelName(), commandEntry.getMessage());
+                if (commandEntry != null && (commandEntry.getPermissions() == null || commandEntry.getPermissions().isEmpty() || hasChatPermissions(commandEntry.getPermissions(), chatEvent.getPermissions()))) {
+                    twitchClient.getChat().sendMessage(twitchChannelConfigEntry.getChannelName(), commandEntry.getMessage());
                 }
             }
         });

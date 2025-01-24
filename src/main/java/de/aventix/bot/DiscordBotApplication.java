@@ -8,10 +8,13 @@ import de.aventix.bot.config.entry.DiscordApplicationConfig;
 import de.aventix.bot.filter.TypeFilter;
 import de.aventix.bot.listener.DiscordListener;
 import de.aventix.bot.searcher.TypeSearcher;
+import de.aventix.bot.serverstats.ServerStatsController;
+import de.aventix.bot.tiktok.TiktokController;
 import de.aventix.bot.twitch.StreamController;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.managers.AccountManager;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import net.dv8tion.jda.api.utils.MemberCachePolicy;
 
@@ -25,7 +28,6 @@ public class DiscordBotApplication {
 
     public static void main(String[] args) {
         try {
-
             Injector injector = Guice.createInjector(new AbstractModule() {
                 protected void configure() {
                     this.bind(ExecutorService.class).toInstance(Executors.newCachedThreadPool());
@@ -53,9 +55,9 @@ public class DiscordBotApplication {
             });
 
             jda = discordBuilder.build().awaitReady();
-
-            //injector.getInstance(ServerStatsController.class).runServerStatsUpdateTask(jda);
+            injector.getInstance(ServerStatsController.class).runServerStatsUpdateTask(jda);
             injector.getInstance(StreamController.class).startStreamController();
+            injector.getInstance(TiktokController.class).startController();
 
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
