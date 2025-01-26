@@ -7,6 +7,7 @@ import de.aventix.bot.config.entry.DiscordApplicationConfig;
 import de.aventix.bot.config.entry.DiscordGuildApplicationConfig;
 import de.aventix.bot.message.EmbededMessageEntity;
 import de.aventix.bot.message.MessageController;
+import de.aventix.bot.twitch.StreamController;
 import de.aventix.bot.twitch.TwitchChannelConfigEntry;
 import de.aventix.bot.twitch.TwitchConfig;
 import net.dv8tion.jda.api.entities.Role;
@@ -17,6 +18,7 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import java.util.stream.Collectors;
 
 @Singleton
 @DiscordListener
@@ -24,17 +26,19 @@ public class ChatCommandListener extends ListenerAdapter {
     private final DiscordApplicationConfig config;
     private final TwitchConfig twitchConfig;
     private final MessageController messageController;
+    private final StreamController streamController;
 
     @Inject
-    public ChatCommandListener(DiscordApplicationConfig config, TwitchConfig twitchConfig, MessageController messageController) {
+    public ChatCommandListener(DiscordApplicationConfig config, TwitchConfig twitchConfig, MessageController messageController, StreamController streamController) {
         this.config = config;
         this.twitchConfig = twitchConfig;
         this.messageController = messageController;
+        this.streamController = streamController;
     }
 
     @Override
     public void onMessageReceived(@NotNull MessageReceivedEvent event) {
-        String[] arguments = event.getMessage().getContentRaw().split(" ", 8);
+        String[] arguments = event.getMessage().getContentRaw().split(" ");
         DiscordGuildApplicationConfig configuration = config.getGuilds().stream().filter(cfg -> cfg.getGuildId() == event.getGuild().getIdLong()).findFirst().orElse(null);
         if (configuration == null) return;
 
@@ -51,10 +55,12 @@ public class ChatCommandListener extends ListenerAdapter {
                     }
                 }
 
-                if (arguments[1] != null && arguments[1].equalsIgnoreCase("twitch")) {
-                    if (arguments[2] != null && arguments[2].equalsIgnoreCase("add")) {
-                        if (arguments[3] == null) {
-                            event.getChannel().sendMessage("Adde einen Twitch Nutzer mit dem Befehl: " + configuration.getBotCommandPrefix() + " twitch add <channelname>!").queue();
+                if (arguments[1].equalsIgnoreCase("twitch")) {
+                    if (arguments.length >= 3 && arguments[2].equalsIgnoreCase("add")) {
+                        if (arguments.length < 5) {
+                            event.getChannel().sendMessage("Token Generator: https://twitchtokengenerator.com/quick/oYKn5SkceX").queue();
+                            event.getChannel().sendMessage("Klicke auf den Link. Melde dich bei Twitch an. Genehmige alle Rechte. Kopiere \"Access Token\".").queue();
+                            event.getChannel().sendMessage("Adde den Benutzer mit " + configuration.getBotCommandPrefix() + " twitch add <channelname> <access-token>").queue();
                         } else {
                             String channelName = arguments[3].toLowerCase();
                             TwitchChannelConfigEntry twitchChannelConfigEntry = twitchConfig.getConfig().getChannels().stream().filter(channel -> channel.getChannelName().equalsIgnoreCase(channelName)).findFirst().orElse(null);
@@ -67,22 +73,24 @@ public class ChatCommandListener extends ListenerAdapter {
                             if (twitchChannelConfigEntry != null) {
                                 twitchChannelConfigEntry.getGuildIds().add(event.getGuild().getIdLong());
                             } else {
-                                twitchConfig.getConfig().getChannels().add(new TwitchChannelConfigEntry(channelName, Lists.newArrayList(), Lists.newArrayList(event.getGuild().getIdLong())));
+                                twitchConfig.getConfig().getChannels().add(new TwitchChannelConfigEntry(channelName, arguments[4], Lists.newArrayList(), Lists.newArrayList(), Lists.newArrayList(event.getGuild().getIdLong())));
                             }
 
                             twitchConfig.save();
+                            streamController.getTwitchClient().getChat().joinChannel(channelName);
+                            streamController.getTwitchClient().getClientHelper().enableStreamEventListener(channelName);
                             event.getChannel().sendMessage(channelName + " wurde als Streamer registriert!").queue();
                         }
                     }
 
                     if (arguments[2] != null && arguments[2].equalsIgnoreCase("remove")) {
-                        if (arguments[3] == null) {
+                        if (arguments[3] == null || arguments[3].isEmpty() || arguments[3].isBlank()) {
                             event.getChannel().sendMessage("Entferne einen Twitch Nutzer mit dem Befehl: " + configuration.getBotCommandPrefix() + " twitch remove <channelname>!").queue();
                         } else {
                             String channelName = arguments[3].toLowerCase();
                             TwitchChannelConfigEntry twitchChannelConfigEntry = twitchConfig.getConfig().getChannels().stream().filter(channel -> channel.getChannelName().equalsIgnoreCase(channelName)).findFirst().orElse(null);
 
-                            if (twitchChannelConfigEntry == null || twitchChannelConfigEntry.getGuildIds().contains(event.getGuild().getIdLong())) {
+                            if (twitchChannelConfigEntry == null || !twitchChannelConfigEntry.getGuildIds().contains(event.getGuild().getIdLong())) {
                                 event.getChannel().sendMessage(channelName + " ist nicht als Streamer registriert!").queue();
                                 return;
                             }
@@ -93,6 +101,8 @@ public class ChatCommandListener extends ListenerAdapter {
                                 twitchChannelConfigEntry.getGuildIds().removeIf(value -> value == event.getGuild().getIdLong());
                             }
                             twitchConfig.save();
+                            streamController.getTwitchClient().getChat().leaveChannel(channelName);
+                            streamController.getTwitchClient().getClientHelper().disableStreamEventListener(channelName);
                             event.getChannel().sendMessage(channelName + " wurde als Streamer entfernt!").queue();
                         }
                     }

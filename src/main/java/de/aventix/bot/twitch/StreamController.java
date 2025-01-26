@@ -7,10 +7,13 @@ import com.github.twitch4j.TwitchClientBuilder;
 import com.github.twitch4j.chat.events.channel.ChannelMessageEvent;
 import com.github.twitch4j.common.enums.CommandPermission;
 import com.github.twitch4j.events.ChannelGoLiveEvent;
+import com.github.twitch4j.helix.domain.ChannelInformation;
+import com.github.twitch4j.helix.domain.Game;
 import com.github.twitch4j.helix.domain.UserList;
 import com.google.common.collect.Lists;
 import de.aventix.bot.DiscordBotApplication;
 import de.aventix.bot.message.MessageController;
+import lombok.Getter;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.channel.ChannelType;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
@@ -18,10 +21,7 @@ import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 @Singleton
@@ -29,6 +29,7 @@ public class StreamController {
     private final MessageController messageController;
     private final TwitchConfig config;
 
+    @Getter
     private TwitchClient twitchClient = null;
 
     @Inject
@@ -39,9 +40,15 @@ public class StreamController {
 
     public void startStreamController() {
         TwitchClientBuilder clientBuilder = TwitchClientBuilder.builder();
-        OAuth2Credential credential = new OAuth2Credential("twitch", config.getIrc());
+        OAuth2Credential credential = new OAuth2Credential("twitch", config.getChatToken());
 
-        twitchClient = clientBuilder.withClientId(config.getClientId()).withClientSecret(config.getSecretKey()).withEnableHelix(true).withEnableChat(true).withChatAccount(credential).withDefaultEventHandler(SimpleEventHandler.class).build();
+        twitchClient = clientBuilder
+                .withClientId(config.getClientId())
+                .withClientSecret(config.getSecretKey())
+                .withEnableHelix(true)
+                .withEnableChat(true)
+                .withChatAccount(credential)
+                .withDefaultEventHandler(SimpleEventHandler.class).build();
 
         config.getConfig().getChannels().forEach(channel -> {
             twitchClient.getChat().joinChannel(channel.getChannelName());
@@ -63,7 +70,7 @@ public class StreamController {
                         String currentTimestamp = timeStamp + " Uhr";
 
                         try {
-                            UserList userList = twitchClient.getHelix().getUsers(config.getIrc(), Lists.newArrayList(liveEvent.getChannel().getId()), Lists.newArrayList(liveEvent.getChannel().getName())).queue().get();
+                            UserList userList = twitchClient.getHelix().getUsers(getIrc(liveEvent.getChannel().getName()), Lists.newArrayList(liveEvent.getChannel().getId()), Lists.newArrayList(liveEvent.getChannel().getName())).queue().get();
                             String profileImage = userList.getUsers().get(0).getProfileImageUrl();
                             Long match = twitchMessageConfigEntry.getSpecialGamePings().get(liveEvent.getStream().getGameId());
                             String roleMention = "";
@@ -84,26 +91,51 @@ public class StreamController {
         twitchClient.getEventManager().onEvent(ChannelMessageEvent.class, chatEvent -> {
             TwitchChannelConfigEntry twitchChannelConfigEntry = config.getConfig().getChannels().stream().filter(channel -> channel.getChannelName().equalsIgnoreCase(chatEvent.getChannel().getName())).findFirst().orElse(null);
 
-            if (twitchChannelConfigEntry != null) {
-                SimpleTwitchCommandConfigEntry commandEntry = twitchChannelConfigEntry.getSimpleCommands().stream().filter(cmd -> cmd.getCommand().contains(chatEvent.getMessage())).findFirst().orElse(null);
+            String[] arguments = chatEvent.getMessage().split(" ");
 
-            /*if (chatEvent.getMessage().startsWith("!settitle")) {
-                if (hasChatPermissions(Arrays.asList("MODERATOR", "BROADCASTER"), chatEvent.getPermissions())) {
-                    String[] arguments = chatEvent.getMessage().split(" ", 2);
-                    if (arguments[1] != null && !arguments[1].isEmpty()) {
-                        try {
-                            ChannelInformation channelInformationList = twitchClient.getHelix().getChannelInformation(config.getIrc(), Collections.singletonList(chatEvent.getChannel().getId())).queue().get().getChannels().get(0).withTitle(arguments[1]);;
-                            twitchClient.getHelix().updateChannelInformation(config.getIrc(), chatEvent.getChannel().getId(), channelInformationList).queue();
-                            twitchClient.getChat().sendMessage(config.getChannelName(), "@" + chatEvent.getUser().getName() + " hat den Titel zu „" + arguments[1] + "“ geändert!");
-                        } catch (InterruptedException | ExecutionException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
-                }
-            }*/
+            if (twitchChannelConfigEntry != null && arguments.length > 0) {
+                SimpleTwitchCommandConfigEntry commandEntry = twitchChannelConfigEntry.getSimpleCommands().stream().filter(cmd -> cmd.getCommand().contains(arguments[0])).findFirst().orElse(null);
 
                 if (commandEntry != null && (commandEntry.getPermissions() == null || commandEntry.getPermissions().isEmpty() || hasChatPermissions(commandEntry.getPermissions(), chatEvent.getPermissions()))) {
                     twitchClient.getChat().sendMessage(twitchChannelConfigEntry.getChannelName(), commandEntry.getMessage());
+                    return;
+                }
+
+                AdvancedTwitchCommandEntry advancedCommandEntry = twitchChannelConfigEntry.getAdvancedCommands().stream().filter(cmd -> cmd.getCommand().contains(arguments[0])).findFirst().orElse(null);
+
+                if (advancedCommandEntry != null && (advancedCommandEntry.getPermissions() == null || advancedCommandEntry.getPermissions().isEmpty() || hasChatPermissions(advancedCommandEntry.getPermissions(), chatEvent.getPermissions()))) {
+                    List<String> messageArguments = Lists.newArrayList();
+                    if (advancedCommandEntry.getActionType().equalsIgnoreCase(COMMAND_ACTION.SETTITLE.name())) {
+                        String title = String.join(" ", Arrays.copyOfRange(arguments, 1, arguments.length));
+                        twitchClient.getHelix().updateChannelInformation(
+                                getIrc(chatEvent.getChannel().getName()),
+                                chatEvent.getChannel().getId(),
+                                ChannelInformation.builder().title(title).build()
+                        ).queue();
+                        twitchClient.getChat().sendMessage(chatEvent.getChannel().getName(), "@" + chatEvent.getUser().getName() + " hat den Titel zu „" + title + "“ geändert!");
+                    } else if (advancedCommandEntry.getActionType().equalsIgnoreCase(COMMAND_ACTION.SETGAME.name())) {
+                        String gameName = String.join(" ", Arrays.copyOfRange(arguments, 1, arguments.length));
+
+                        Game foundGame = twitchClient.getHelix().getGames(null, null, Collections.singletonList(gameName), null)
+                                .execute()
+                                .getGames()
+                                .stream()
+                                .findFirst()
+                                .orElse(null);
+
+                        if (foundGame == null) {
+                            twitchClient.getChat().sendMessage(chatEvent.getChannel().getName(),
+                                    "@" + chatEvent.getUser().getName() + " Spiel „" + gameName + "“ nicht gefunden!");
+                            return;
+                        }
+
+                        twitchClient.getHelix().updateChannelInformation(
+                                getIrc(chatEvent.getChannel().getName()),
+                                chatEvent.getChannel().getId(),
+                                ChannelInformation.builder().gameId(foundGame.getId()).build()
+                        ).queue();
+                        twitchClient.getChat().sendMessage(chatEvent.getChannel().getName(), "@" + chatEvent.getUser().getName() + " hat das Spiel zu „" + foundGame.getName() + "“ geändert!");
+                    }
                 }
             }
         });
@@ -111,5 +143,10 @@ public class StreamController {
 
     public boolean hasChatPermissions(List<String> permissionRequired, Set<CommandPermission> userPermissions) {
         return userPermissions.stream().anyMatch(chatPerm -> permissionRequired.contains(chatPerm.name()));
+    }
+
+    public String getIrc(String channelName) {
+        TwitchChannelConfigEntry twitchChannelConfigEntry = this.config.getConfig().getChannels().stream().filter(channel -> channel.getChannelName().equalsIgnoreCase(channelName)).findFirst().orElse(null);
+        return twitchChannelConfigEntry == null ? null : twitchChannelConfigEntry.getIrc();
     }
 }

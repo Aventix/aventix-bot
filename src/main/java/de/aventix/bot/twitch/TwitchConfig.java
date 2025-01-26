@@ -16,7 +16,7 @@ import javax.inject.Singleton;
 public class TwitchConfig extends Config {
     private String clientId = "clientId";
     private String secretKey = "secretKey";
+    private String chatToken = "IRC_CHAT_TOKEN";
     private String redirectUrl = "redirectUrl";
-    private String irc = "IRC";
     private TwitchConfigEntry config = new TwitchConfigEntry();
 }
